@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NanoCore</title>
+  <style>
+    canvas {
+      background: #111;
+      display: block;
+      margin: auto;
+      border: 2px solid #0f0;
+    }
+    body {
+      text-align: center;
+      color: white;
+      background: #000;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>NanoCore</h1>
+  <p>Use arrow keys or WASD to move. Collect green nutrients. Avoid red viruses.</p>
+  <canvas id="game" width="640" height="480"></canvas>
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const TILE_SIZE = 32;
+    const MAP_WIDTH = 20;
+    const MAP_HEIGHT = 15;
+
+    let keys = {};
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
+
+    const player = {
+      x: 5,
+      y: 5,
+      energy: 100,
+      color: "cyan",
+    };
+
+    const nutrients = Array.from({ length: 10 }, () => ({
+      x: Math.floor(Math.random() * MAP_WIDTH),
+      y: Math.floor(Math.random() * MAP_HEIGHT),
+      collected: false
+    }));
+
+    const viruses = Array.from({ length: 5 }, () => ({
+      x: Math.floor(Math.random() * MAP_WIDTH),
+      y: Math.floor(Math.random() * MAP_HEIGHT),
+    }));
+
+    function update() {
+      if (player.energy <= 0) return;
+      let dx = 0, dy = 0;
+      if (keys["ArrowUp"] || keys["w"]) dy = -1;
+      if (keys["ArrowDown"] || keys["s"]) dy = 1;
+      if (keys["ArrowLeft"] || keys["a"]) dx = -1;
+      if (keys["ArrowRight"] || keys["d"]) dx = 1;
+
+      if (dx !== 0 || dy !== 0) {
+        const newX = player.x + dx;
+        const newY = player.y + dy;
+        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT) {
+          player.x = newX;
+          player.y = newY;
+          player.energy -= 1;
+        }
+      }
+
+      nutrients.forEach(n => {
+        if (!n.collected && n.x === player.x && n.y === player.y) {
+          n.collected = true;
+          player.energy += 20;
+          if (player.energy > 100) player.energy = 100;
+        }
+      });
+
+      viruses.forEach(v => {
+        if (v.x === player.x && v.y === player.y) {
+          player.energy -= 10;
+        }
+      });
+    }
+
+    function drawTile(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE - 2, TILE_SIZE - 2);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      nutrients.forEach(n => {
+        if (!n.collected) drawTile(n.x, n.y, "lime");
+      });
+
+      viruses.forEach(v => drawTile(v.x, v.y, "red"));
+
+      drawTile(player.x, player.y, player.color);
+
+      // Draw HUD
+      ctx.fillStyle = "white";
+      ctx.fillText("Energy: " + player.energy, 10, 470);
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
