@@ -38,25 +38,20 @@
       margin-top: 20px;
       cursor: pointer;
     }
-    .scanner-message {
+    #zoneLabel {
       position: absolute;
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0, 255, 0, 0.1);
-      color: #0f0;
-      font-family: monospace;
       font-size: 18px;
-      padding: 10px 20px;
-      border: 1px solid #0f0;
-      border-radius: 4px;
-      display: none;
+      color: #0f0;
     }
   </style>
 </head>
 <body>
   <h1>NanoCore</h1>
-  <p>Use arrow keys or WASD to move. Collect green nutrients. Avoid red viruses. Press SPACE to scan.</p>
+  <p>Use arrow keys or WASD to move. Press <strong>E</strong> to scan. Avoid red viruses. Collect hidden nutrients.</p>
+  <div id="zoneLabel"></div>
   <div id="overlay" style="display: flex">
     <div>
       <h2>Welcome to NanoCore</h2>
@@ -64,13 +59,12 @@
       <button onclick="startGame()">Start</button>
     </div>
   </div>
-  <div class="scanner-message" id="scannerMessage"></div>
   <canvas id="game" width="640" height="480"></canvas>
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const overlay = document.getElementById("overlay");
-    const scannerMessage = document.getElementById("scannerMessage");
+    const zoneLabel = document.getElementById("zoneLabel");
 
     const TILE_SIZE = 32;
     const MAP_WIDTH = 20;
@@ -83,9 +77,16 @@
     let gameWon = false;
     let upgrades = 0;
     let upgradePoints = 0;
+    let scannerAvailable = false;
+    let scanMap = [];
     let scanCooldown = 0;
+    let zone = 1;
 
-    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keydown", e => {
+      keys[e.key] = true;
+      if (e.key === "e" && scannerAvailable && scanCooldown <= 0) scan();
+      if (e.key === " " && gameRunning && nutrients.every(n => n.collected)) nextZone();
+    });
     document.addEventListener("keyup", e => keys[e.key] = false);
 
     const player = {
@@ -95,7 +96,8 @@
       maxEnergy: 100,
       color: "cyan",
       vx: 0,
-      vy: 0
+      vy: 0,
+      regen: false
     };
 
     let nutrients = [];
@@ -109,34 +111,46 @@
       upgrades = 0;
       upgradePoints = 0;
       SPEED = 1.5;
-      scanCooldown = 0;
+      scannerAvailable = false;
+      zone = 1;
+      generateLevel();
+    }
+
+    function generateLevel() {
       nutrients = Array.from({ length: 10 }, () => ({
         x: Math.floor(Math.random() * MAP_WIDTH),
-        y: Math.floor(Math.random() * MAP_HEIGHT),
-        collected: false
+        y: Math.floor(Math.random() * (MAP_HEIGHT - 1)),
+        collected: false,
+        revealed: false
       }));
-      viruses = Array.from({ length: 5 }, () => ({
+      viruses = Array.from({ length: 5 + zone }, () => ({
         x: Math.floor(Math.random() * MAP_WIDTH),
-        y: Math.floor(Math.random() * MAP_HEIGHT)
+        y: Math.floor(Math.random() * (MAP_HEIGHT - 1))
       }));
-      gameOver = false;
-      gameWon = false;
+      scanMap = Array.from({ length: MAP_WIDTH }, () => Array(MAP_HEIGHT).fill(false));
+      scanCooldown = 0;
+      zoneLabel.textContent = `Zone ${zone}`;
     }
 
     function startGame() {
       overlay.style.display = "none";
       gameRunning = true;
+      gameOver = false;
+      gameWon = false;
       resetGame();
+    }
+
+    function nextZone() {
+      zone++;
+      generateLevel();
     }
 
     function endGame(win) {
       gameRunning = false;
       overlay.style.display = "flex";
-      if (win) {
-        overlay.innerHTML = `<div><h2>Mission Accomplished</h2><p>You collected all nutrients and discovered the DNA anomaly.<br>It's an unknown virus... Mission data sent for analysis.</p><button onclick='startGame()'>Play Again</button></div>`;
-      } else {
-        overlay.innerHTML = `<div><h2>System Failure</h2><p>Your energy has depleted... The body rejected you.</p><button onclick='startGame()'>Retry</button></div>`;
-      }
+      overlay.innerHTML = win ?
+        `<div><h2>Mission Accomplished</h2><p>You cleansed the body and uncovered the anomaly.</p><button onclick='startGame()'>Play Again</button></div>` :
+        `<div><h2>System Failure</h2><p>Your energy has depleted... The body rejected you.</p><button onclick='startGame()'>Retry</button></div>`;
     }
 
     function chooseUpgrade() {
@@ -147,6 +161,7 @@
         <button onclick="applyUpgrade('speed')">+Speed</button>
         <button onclick="applyUpgrade('energy')">+Max Energy</button>
         <button onclick="applyUpgrade('regen')">Passive Regen</button>
+        <button onclick="applyUpgrade('scan')">Enable Scanner</button>
       </div>`;
       gameRunning = false;
     }
@@ -155,6 +170,7 @@
       if (type === "speed") SPEED += 0.5;
       if (type === "energy") player.maxEnergy += 20;
       if (type === "regen") player.regen = true;
+      if (type === "scan") scannerAvailable = true;
       upgradePoints--;
       if (upgradePoints > 0) chooseUpgrade();
       else {
@@ -163,14 +179,29 @@
       }
     }
 
+    function scan() {
+      const px = Math.floor(player.x / TILE_SIZE);
+      const py = Math.floor(player.y / TILE_SIZE);
+      for (let dx = -3; dx <= 3; dx++) {
+        for (let dy = -3; dy <= 3; dy++) {
+          const x = px + dx;
+          const y = py + dy;
+          if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+            scanMap[x][y] = true;
+            nutrients.forEach(n => {
+              if (n.x === x && n.y === y) n.revealed = true;
+            });
+          }
+        }
+      }
+      scanCooldown = 100;
+    }
+
     function update() {
       if (!gameRunning) return;
-      if (player.energy <= 0) {
-        gameOver = true;
-        endGame(false);
-        return;
-      }
+      if (player.energy <= 0) return endGame(false);
 
+      scanCooldown--;
       player.vx = player.vy = 0;
       if (keys["ArrowUp"] || keys["w"]) player.vy = -SPEED;
       if (keys["ArrowDown"] || keys["s"]) player.vy = SPEED;
@@ -183,15 +214,8 @@
       if (nextX >= 0 && nextX < canvas.width - TILE_SIZE) player.x = nextX;
       if (nextY >= 0 && nextY < canvas.height - TILE_SIZE) player.y = nextY;
 
-      if (player.vx !== 0 || player.vy !== 0) {
-        player.energy -= 0.1;
-        if (player.energy < 0) player.energy = 0;
-      }
-
-      if (player.regen) {
-        player.energy += 0.05;
-        if (player.energy > player.maxEnergy) player.energy = player.maxEnergy;
-      }
+      if (player.vx !== 0 || player.vy !== 0) player.energy -= 0.1;
+      if (player.regen) player.energy = Math.min(player.energy + 0.05, player.maxEnergy);
 
       const gridX = Math.floor(player.x / TILE_SIZE);
       const gridY = Math.floor(player.y / TILE_SIZE);
@@ -199,8 +223,7 @@
       nutrients.forEach(n => {
         if (!n.collected && n.x === gridX && n.y === gridY) {
           n.collected = true;
-          player.energy += 20;
-          if (player.energy > player.maxEnergy) player.energy = player.maxEnergy;
+          player.energy = Math.min(player.energy + 20, player.maxEnergy);
           upgrades++;
           if (upgrades % 3 === 0) {
             upgradePoints++;
@@ -216,20 +239,9 @@
       });
 
       if (nutrients.every(n => n.collected)) {
-        gameWon = true;
-        endGame(true);
+        ctx.fillStyle = "lime";
+        ctx.fillText("Zone cleared! Press SPACE to continue", 150, 20);
       }
-
-      // Scan ability (SPACE)
-      if ((keys[" "] || keys["Space"]) && scanCooldown <= 0) {
-        scanCooldown = 100;
-        const virusNearby = viruses.some(v => Math.abs(v.x - gridX) <= 1 && Math.abs(v.y - gridY) <= 1);
-        scannerMessage.textContent = virusNearby ? "Warning: Virus nearby!" : "Area clear.";
-        scannerMessage.style.display = "block";
-        setTimeout(() => scannerMessage.style.display = "none", 1500);
-      }
-
-      if (scanCooldown > 0) scanCooldown--;
     }
 
     function drawTile(x, y, color) {
@@ -241,7 +253,7 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       nutrients.forEach(n => {
-        if (!n.collected) drawTile(n.x, n.y, "lime");
+        if (!n.collected && n.revealed) drawTile(n.x, n.y, "lime");
       });
 
       viruses.forEach(v => drawTile(v.x, v.y, "red"));
