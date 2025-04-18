@@ -17,73 +17,156 @@
       background: #000;
       font-family: monospace;
     }
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      font-size: 24px;
+      z-index: 10;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 20px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <h1>NanoCore</h1>
   <p>Use arrow keys or WASD to move. Collect green nutrients. Avoid red viruses.</p>
+  <div id="overlay" style="display: flex">
+    <div>
+      <h2>Welcome to NanoCore</h2>
+      <p>You are a nanomachine, injected into a mysterious human body.<br>Collect nutrients and uncover a hidden secret in the DNA...</p>
+      <button onclick="startGame()">Start</button>
+    </div>
+  </div>
   <canvas id="game" width="640" height="480"></canvas>
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
+    const overlay = document.getElementById("overlay");
 
     const TILE_SIZE = 32;
     const MAP_WIDTH = 20;
     const MAP_HEIGHT = 15;
+    let SPEED = 1.5;
 
     let keys = {};
+    let gameRunning = false;
+    let gameOver = false;
+    let gameWon = false;
+    let upgrades = 0;
+
     document.addEventListener("keydown", e => keys[e.key] = true);
     document.addEventListener("keyup", e => keys[e.key] = false);
 
     const player = {
-      x: 5,
-      y: 5,
+      x: 5 * TILE_SIZE,
+      y: 5 * TILE_SIZE,
       energy: 100,
       color: "cyan",
+      vx: 0,
+      vy: 0
     };
 
-    const nutrients = Array.from({ length: 10 }, () => ({
-      x: Math.floor(Math.random() * MAP_WIDTH),
-      y: Math.floor(Math.random() * MAP_HEIGHT),
-      collected: false
-    }));
+    let nutrients = [];
+    let viruses = [];
 
-    const viruses = Array.from({ length: 5 }, () => ({
-      x: Math.floor(Math.random() * MAP_WIDTH),
-      y: Math.floor(Math.random() * MAP_HEIGHT),
-    }));
+    function resetGame() {
+      player.x = 5 * TILE_SIZE;
+      player.y = 5 * TILE_SIZE;
+      player.energy = 100;
+      upgrades = 0;
+      SPEED = 1.5;
+      nutrients = Array.from({ length: 10 }, () => ({
+        x: Math.floor(Math.random() * MAP_WIDTH),
+        y: Math.floor(Math.random() * MAP_HEIGHT),
+        collected: false
+      }));
+      viruses = Array.from({ length: 5 }, () => ({
+        x: Math.floor(Math.random() * MAP_WIDTH),
+        y: Math.floor(Math.random() * MAP_HEIGHT)
+      }));
+      gameOver = false;
+      gameWon = false;
+    }
+
+    function startGame() {
+      overlay.style.display = "none";
+      gameRunning = true;
+      resetGame();
+    }
+
+    function endGame(win) {
+      gameRunning = false;
+      overlay.style.display = "flex";
+      if (win) {
+        overlay.innerHTML = `<div><h2>Mission Accomplished</h2><p>You collected all nutrients and discovered the DNA anomaly.<br>It's an unknown virus... Mission data sent for analysis.</p><button onclick='startGame()'>Play Again</button></div>`;
+      } else {
+        overlay.innerHTML = `<div><h2>System Failure</h2><p>Your energy has depleted... The body rejected you.</p><button onclick='startGame()'>Retry</button></div>`;
+      }
+    }
 
     function update() {
-      if (player.energy <= 0) return;
-      let dx = 0, dy = 0;
-      if (keys["ArrowUp"] || keys["w"]) dy = -1;
-      if (keys["ArrowDown"] || keys["s"]) dy = 1;
-      if (keys["ArrowLeft"] || keys["a"]) dx = -1;
-      if (keys["ArrowRight"] || keys["d"]) dx = 1;
-
-      if (dx !== 0 || dy !== 0) {
-        const newX = player.x + dx;
-        const newY = player.y + dy;
-        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT) {
-          player.x = newX;
-          player.y = newY;
-          player.energy -= 1;
-        }
+      if (!gameRunning) return;
+      if (player.energy <= 0) {
+        gameOver = true;
+        endGame(false);
+        return;
       }
 
+      player.vx = player.vy = 0;
+      if (keys["ArrowUp"] || keys["w"]) player.vy = -SPEED;
+      if (keys["ArrowDown"] || keys["s"]) player.vy = SPEED;
+      if (keys["ArrowLeft"] || keys["a"]) player.vx = -SPEED;
+      if (keys["ArrowRight"] || keys["d"]) player.vx = SPEED;
+
+      const nextX = player.x + player.vx;
+      const nextY = player.y + player.vy;
+
+      if (nextX >= 0 && nextX < canvas.width - TILE_SIZE) player.x = nextX;
+      if (nextY >= 0 && nextY < canvas.height - TILE_SIZE) player.y = nextY;
+
+      if (player.vx !== 0 || player.vy !== 0) {
+        player.energy -= 0.1;
+        if (player.energy < 0) player.energy = 0;
+      }
+
+      const gridX = Math.floor(player.x / TILE_SIZE);
+      const gridY = Math.floor(player.y / TILE_SIZE);
+
       nutrients.forEach(n => {
-        if (!n.collected && n.x === player.x && n.y === player.y) {
+        if (!n.collected && n.x === gridX && n.y === gridY) {
           n.collected = true;
           player.energy += 20;
+          upgrades++;
           if (player.energy > 100) player.energy = 100;
+          if (upgrades % 3 === 0) {
+            SPEED += 0.5;
+          }
         }
       });
 
       viruses.forEach(v => {
-        if (v.x === player.x && v.y === player.y) {
-          player.energy -= 10;
+        if (v.x === gridX && v.y === gridY) {
+          player.energy -= 5;
         }
       });
+
+      if (nutrients.every(n => n.collected)) {
+        gameWon = true;
+        endGame(true);
+      }
     }
 
     function drawTile(x, y, color) {
@@ -100,11 +183,11 @@
 
       viruses.forEach(v => drawTile(v.x, v.y, "red"));
 
-      drawTile(player.x, player.y, player.color);
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x, player.y, TILE_SIZE - 4, TILE_SIZE - 4);
 
-      // Draw HUD
       ctx.fillStyle = "white";
-      ctx.fillText("Energy: " + player.energy, 10, 470);
+      ctx.fillText("Energy: " + Math.floor(player.energy), 10, 470);
     }
 
     function loop() {
@@ -117,3 +200,4 @@
   </script>
 </body>
 </html>
+
