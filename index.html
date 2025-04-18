@@ -38,11 +38,25 @@
       margin-top: 20px;
       cursor: pointer;
     }
+    .scanner-message {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 255, 0, 0.1);
+      color: #0f0;
+      font-family: monospace;
+      font-size: 18px;
+      padding: 10px 20px;
+      border: 1px solid #0f0;
+      border-radius: 4px;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <h1>NanoCore</h1>
-  <p>Use arrow keys or WASD to move. Collect green nutrients. Avoid red viruses.</p>
+  <p>Use arrow keys or WASD to move. Collect green nutrients. Avoid red viruses. Press SPACE to scan.</p>
   <div id="overlay" style="display: flex">
     <div>
       <h2>Welcome to NanoCore</h2>
@@ -50,15 +64,17 @@
       <button onclick="startGame()">Start</button>
     </div>
   </div>
+  <div class="scanner-message" id="scannerMessage"></div>
   <canvas id="game" width="640" height="480"></canvas>
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const overlay = document.getElementById("overlay");
+    const scannerMessage = document.getElementById("scannerMessage");
 
     const TILE_SIZE = 32;
     const MAP_WIDTH = 20;
-    const MAP_HEIGHT = 15;
+    const MAP_HEIGHT = 14;
     let SPEED = 1.5;
 
     let keys = {};
@@ -66,6 +82,8 @@
     let gameOver = false;
     let gameWon = false;
     let upgrades = 0;
+    let upgradePoints = 0;
+    let scanCooldown = 0;
 
     document.addEventListener("keydown", e => keys[e.key] = true);
     document.addEventListener("keyup", e => keys[e.key] = false);
@@ -74,6 +92,7 @@
       x: 5 * TILE_SIZE,
       y: 5 * TILE_SIZE,
       energy: 100,
+      maxEnergy: 100,
       color: "cyan",
       vx: 0,
       vy: 0
@@ -86,8 +105,11 @@
       player.x = 5 * TILE_SIZE;
       player.y = 5 * TILE_SIZE;
       player.energy = 100;
+      player.maxEnergy = 100;
       upgrades = 0;
+      upgradePoints = 0;
       SPEED = 1.5;
+      scanCooldown = 0;
       nutrients = Array.from({ length: 10 }, () => ({
         x: Math.floor(Math.random() * MAP_WIDTH),
         y: Math.floor(Math.random() * MAP_HEIGHT),
@@ -117,6 +139,30 @@
       }
     }
 
+    function chooseUpgrade() {
+      overlay.style.display = "flex";
+      overlay.innerHTML = `<div>
+        <h2>Upgrade!</h2>
+        <p>You gained an improvement point!</p>
+        <button onclick="applyUpgrade('speed')">+Speed</button>
+        <button onclick="applyUpgrade('energy')">+Max Energy</button>
+        <button onclick="applyUpgrade('regen')">Passive Regen</button>
+      </div>`;
+      gameRunning = false;
+    }
+
+    function applyUpgrade(type) {
+      if (type === "speed") SPEED += 0.5;
+      if (type === "energy") player.maxEnergy += 20;
+      if (type === "regen") player.regen = true;
+      upgradePoints--;
+      if (upgradePoints > 0) chooseUpgrade();
+      else {
+        overlay.style.display = "none";
+        gameRunning = true;
+      }
+    }
+
     function update() {
       if (!gameRunning) return;
       if (player.energy <= 0) {
@@ -142,6 +188,11 @@
         if (player.energy < 0) player.energy = 0;
       }
 
+      if (player.regen) {
+        player.energy += 0.05;
+        if (player.energy > player.maxEnergy) player.energy = player.maxEnergy;
+      }
+
       const gridX = Math.floor(player.x / TILE_SIZE);
       const gridY = Math.floor(player.y / TILE_SIZE);
 
@@ -149,10 +200,11 @@
         if (!n.collected && n.x === gridX && n.y === gridY) {
           n.collected = true;
           player.energy += 20;
+          if (player.energy > player.maxEnergy) player.energy = player.maxEnergy;
           upgrades++;
-          if (player.energy > 100) player.energy = 100;
           if (upgrades % 3 === 0) {
-            SPEED += 0.5;
+            upgradePoints++;
+            chooseUpgrade();
           }
         }
       });
@@ -167,6 +219,17 @@
         gameWon = true;
         endGame(true);
       }
+
+      // Scan ability (SPACE)
+      if ((keys[" "] || keys["Space"]) && scanCooldown <= 0) {
+        scanCooldown = 100;
+        const virusNearby = viruses.some(v => Math.abs(v.x - gridX) <= 1 && Math.abs(v.y - gridY) <= 1);
+        scannerMessage.textContent = virusNearby ? "Warning: Virus nearby!" : "Area clear.";
+        scannerMessage.style.display = "block";
+        setTimeout(() => scannerMessage.style.display = "none", 1500);
+      }
+
+      if (scanCooldown > 0) scanCooldown--;
     }
 
     function drawTile(x, y, color) {
@@ -187,7 +250,7 @@
       ctx.fillRect(player.x, player.y, TILE_SIZE - 4, TILE_SIZE - 4);
 
       ctx.fillStyle = "white";
-      ctx.fillText("Energy: " + Math.floor(player.energy), 10, 470);
+      ctx.fillText("Energy: " + Math.floor(player.energy) + "/" + player.maxEnergy, 10, 470);
     }
 
     function loop() {
@@ -200,4 +263,3 @@
   </script>
 </body>
 </html>
-
