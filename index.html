@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -40,7 +41,7 @@
     }
     #zoneLabel {
       position: absolute;
-      top: 100px;
+      top: 60px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 18px;
@@ -58,7 +59,7 @@
   </style>
 </head>
 <body>
-  <h1 id="title">NanoCore <a href="https://www.flaviengibs.github.io/nanocore-instructions/index.html">Instructions</a></h1>
+  <h1 id="title">NanoCore</h1>
   <div id="zoneLabel"></div>
   <div id="scanStatus"></div>
   <div id="overlay" style="display: flex">
@@ -73,253 +74,90 @@
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const overlay = document.getElementById("overlay");
-    const zoneLabel = document.getElementById("zoneLabel");
     const scanStatus = document.getElementById("scanStatus");
+    const zoneLabel = document.getElementById("zoneLabel");
 
     const TILE_SIZE = 32;
     const MAP_WIDTH = 20;
-    const MAP_HEIGHT = 14;
-    let SPEED = 1.5;
+    const MAP_HEIGHT = 15;
+    const SPEED = 2;
 
     let keys = {};
-    let gameRunning = false;
-    let gameOver = false;
-    let gameWon = false;
-    let upgrades = 0;
-    let upgradePoints = 0;
-    let scannerAvailable = true;
-    let scanRange = 3;
-    let scanMap = [];
-    let scanCooldown = 0;
-    let zone = 1;
-
-    document.addEventListener("keydown", e => {
-      keys[e.key] = true;
-      if (e.key === "e" && scannerAvailable && scanCooldown <= 0) scan();
-      if (e.key === " " && gameRunning && nutrients.every(n => n.collected)) nextZone();
-    });
-    document.addEventListener("keyup", e => keys[e.key] = false);
-
-    const player = {
-      x: 5 * TILE_SIZE,
-      y: 5 * TILE_SIZE,
-      energy: 100,
-      maxEnergy: 100,
-      color: "cyan",
+    let player = {
+      x: 0,
+      y: 0,
       vx: 0,
       vy: 0,
-      regen: false
+      energy: 100,
+      maxEnergy: 100,
+      regen: false,
+      speed: SPEED
     };
-
     let nutrients = [];
     let viruses = [];
-
-    function resetGame() {
-      player.x = 5 * TILE_SIZE;
-      player.y = 5 * TILE_SIZE;
-      player.energy = 100;
-      player.maxEnergy = 100;
-      upgrades = 0;
-      upgradePoints = 0;
-      SPEED = 1.5;
-      scannerAvailable = true;
-      scanRange = 3;
-      zone = 1;
-      generateLevel();
-    }
-
-    function generateLevel() {
-      nutrients = [];
-      viruses = [];
-      while (nutrients.length < 10) {
-        let x = Math.floor(Math.random() * MAP_WIDTH);
-        let y = Math.floor(Math.random() * (MAP_HEIGHT - 1));
-        if (!viruses.some(v => v.x === x && v.y === y)) {
-          nutrients.push({ x, y, collected: false, revealed: false });
-        }
-      }
-
-      viruses = Array.from({ length: 5 + zone }, () => {
-        const moving = Math.random() < 0.3;
-        let vx, vy;
-        let x, y;
-        do {
-          x = Math.floor(Math.random() * MAP_WIDTH);
-          y = Math.floor(Math.random() * (MAP_HEIGHT - 1));
-        } while (nutrients.some(n => n.x === x && n.y === y));
-
-        return {
-          x,
-          y,
-          moving,
-          dx: moving ? (Math.random() < 0.5 ? 1 : -1) : 0,
-          dy: moving ? (Math.random() < 0.5 ? 1 : -1) : 0
-        };
-      });
-
-      scanMap = Array.from({ length: MAP_WIDTH }, () => Array(MAP_HEIGHT).fill(false));
-      scanCooldown = 0;
-      zoneLabel.textContent = `Zone ${zone}`;
-    }
+    let upgrades = 0;
+    let upgradePoints = 0;
+    let gameRunning = false;
+    let finalChallenge = false;
+    let scanCooldown = 0;
+    let scanRadius = 2;
+    let zonesCleared = 0;
+    let currentZone = 1;
 
     function startGame() {
-      overlay.style.display = "none";
+      player.x = 0;
+      player.y = 0;
+      player.energy = player.maxEnergy;
+      player.speed = SPEED;
+      player.regen = false;
+      upgrades = 0;
+      upgradePoints = 0;
+      nutrients = [];
+      viruses = [];
       gameRunning = true;
-      gameOver = false;
-      gameWon = false;
-      resetGame();
+      finalChallenge = false;
+      scanCooldown = 0;
+      scanRadius = 2;
+      currentZone = 1;
+      zonesCleared = 0;
+      overlay.style.display = "none";
+      zoneLabel.textContent = `Zone ${currentZone}`;
+      generateMap();
     }
 
-    function nextZone() {
-      zone++;
-      generateLevel();
-    }
-
-    function endGame(win) {
-      gameRunning = false;
-      overlay.style.display = "flex";
-      overlay.innerHTML = win ?
-        `<div><h2>Mission Accomplished</h2><p>You cleansed the body and uncovered the anomaly.</p><button onclick='startGame()'>Play Again</button></div>` :
-        `<div><h2>System Failure</h2><p>Your energy has depleted... The body rejected you.</p><button onclick='startGame()'>Retry</button></div>`;
+    function generateMap() {
+      nutrients = [];
+      viruses = [];
+      for (let i = 0; i < 10; i++) {
+        let x = Math.floor(Math.random() * MAP_WIDTH);
+        let y = Math.floor(Math.random() * (MAP_HEIGHT - 1));
+        nutrients.push({ x, y, collected: false, revealed: false });
+      }
+      for (let i = 0; i < 5; i++) {
+        let x = Math.floor(Math.random() * MAP_WIDTH);
+        let y = Math.floor(Math.random() * (MAP_HEIGHT - 1));
+        let moving = Math.random() < 0.5;
+        viruses.push({ x, y, dx: 1, dy: 1, moving, color: moving ? "purple" : "red" });
+      }
     }
 
     function chooseUpgrade() {
-      overlay.style.display = "flex";
-      overlay.innerHTML = `<div>
-        <h2>Upgrade!</h2>
-        <p>You gained an improvement point!</p>
-        <button onclick="applyUpgrade('speed')">+Speed</button>
-        <button onclick="applyUpgrade('energy')">+Max Energy</button>
-        <button onclick="applyUpgrade('regen')">Passive Regen</button>
-        <button onclick="applyUpgrade('scanrange')">Extended Scan</button>
-      </div>`;
-      gameRunning = false;
+      const options = [
+        { name: "+ Scan Radius", effect: () => scanRadius++ },
+        { name: "+ Max Energy", effect: () => player.maxEnergy += 20 },
+        { name: "+ Speed", effect: () => player.speed += 0.5 },
+        { name: "Passive Regen", effect: () => player.regen = true }
+      ];
+
+      const choice = prompt("Choose an upgrade:\n1. + Scan Radius\n2. + Max Energy\n3. + Speed\n4. Passive Regen");
+      const index = parseInt(choice) - 1;
+      if (options[index]) options[index].effect();
     }
 
-    function applyUpgrade(type) {
-      if (type === "speed") SPEED += 0.5;
-      if (type === "energy") player.maxEnergy += 20;
-      if (type === "regen") player.regen = true;
-      if (type === "scanrange") scanRange += 1;
-      upgradePoints--;
-      if (upgradePoints > 0) chooseUpgrade();
-      else {
-        overlay.style.display = "none";
-        gameRunning = true;
-      }
-    }
-
-    function scan() {
-      const px = Math.floor(player.x / TILE_SIZE);
-      const py = Math.floor(player.y / TILE_SIZE);
-      for (let dx = -scanRange; dx <= scanRange; dx++) {
-        for (let dy = -scanRange; dy <= scanRange; dy++) {
-          const x = px + dx;
-          const y = py + dy;
-          if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
-            scanMap[x][y] = true;
-            nutrients.forEach(n => {
-              if (n.x === x && n.y === y) n.revealed = true;
-            });
-          }
-        }
-      }
-      scanCooldown = 100;
-    }
-
-    function update() {
-      if (!gameRunning) return;
-      if (player.energy <= 0) return endGame(false);
-
-      if (scanCooldown > 0) {
-        scanCooldown--;
-        scanStatus.textContent = "";
-      } else {
-        scanStatus.textContent = "Scanner prêt";
-      }
-
-      player.vx = player.vy = 0;
-      if (keys["ArrowUp"] || keys["z"]) player.vy = -SPEED;
-      if (keys["ArrowDown"] || keys["s"]) player.vy = SPEED;
-      if (keys["ArrowLeft"] || keys["q"]) player.vx = -SPEED;
-      if (keys["ArrowRight"] || keys["d"]) player.vx = SPEED;
-
-      const nextX = player.x + player.vx;
-      const nextY = player.y + player.vy;
-
-      if (nextX >= 0 && nextX < canvas.width - TILE_SIZE) player.x = nextX;
-      if (nextY >= 0 && nextY < canvas.height - TILE_SIZE) player.y = nextY;
-
-      if (player.vx !== 0 || player.vy !== 0) player.energy -= 0.1;
-      if (player.regen) player.energy = Math.min(player.energy + 0.05, player.maxEnergy);
-
-      const gridX = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
-      const gridY = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
-
-      nutrients.forEach(n => {
-        if (!n.collected && n.x === gridX && n.y === gridY) {
-          n.collected = true;
-          player.energy = Math.min(player.energy + 20, player.maxEnergy);
-          upgrades++;
-          if (upgrades % 3 === 0) {
-            upgradePoints++;
-            chooseUpgrade();
-          }
-        }
-      });
-
-      viruses.forEach(v => {
-        if (v.moving) {
-          v.x += v.dx;
-          v.y += v.dy;
-          if (v.x < 0 || v.x >= MAP_WIDTH) v.dx *= -1;
-          if (v.y < 0 || v.y >= MAP_HEIGHT - 1) v.dy *= -1;
-        }
-        if (v.x === gridX && v.y === gridY) {
-          player.energy -= 5;
-        }
-      });
-    }
-
-    function drawTile(x, y, color) {
-      ctx.fillStyle = color;
-      ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE - 2, TILE_SIZE - 2);
-    }
-
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      nutrients.forEach(n => {
-        if (!n.collected && n.revealed) drawTile(n.x, n.y, "lime");
-      });
-
-      viruses.forEach(v => drawTile(v.x, v.y, v.moving ? "purple" : "red"));
-
-      ctx.fillStyle = player.color;
-      ctx.fillRect(player.x, player.y, TILE_SIZE - 4, TILE_SIZE - 4);
-
-      ctx.fillStyle = "white";
-      ctx.fillText("Energy: " + Math.floor(player.energy) + "/" + player.maxEnergy, 10, 470);
-
-      if (nutrients.every(n => n.collected)) {
-        ctx.fillStyle = "lime";
-        ctx.fillText("Zone cleared! Press SPACE to continue", 150, 30);
-      }
-    }
-
-    function loop() {
-      update();
-      draw();
-      requestAnimationFrame(loop);
-    }
-
-    loop();
     function endGame(win) {
       gameRunning = false;
       overlay.style.display = "flex";
-
       if (win) {
-        // Final boss or DNA riddle
         overlay.innerHTML = `<div>
           <h2>Final Encounter</h2>
           <p>You reach the heart of the DNA chain. A complex code blocks your path.<br>Decrypt it by collecting 5 special nutrients before energy runs out!</p>
@@ -348,7 +186,13 @@
       player.energy = player.maxEnergy;
     }
 
-    let finalChallenge = false;
+    function scanArea() {
+      nutrients.forEach(n => {
+        if (!n.collected && Math.abs(n.x - Math.floor(player.x / TILE_SIZE)) <= scanRadius && Math.abs(n.y - Math.floor(player.y / TILE_SIZE)) <= scanRadius) {
+          n.revealed = true;
+        }
+      });
+    }
 
     function update() {
       if (!gameRunning) return;
@@ -358,10 +202,10 @@
       if (scanCooldown > 0) scanCooldown--;
 
       player.vx = player.vy = 0;
-      if (keys["ArrowUp"] || keys["w"]) player.vy = -SPEED;
-      if (keys["ArrowDown"] || keys["s"]) player.vy = SPEED;
-      if (keys["ArrowLeft"] || keys["a"]) player.vx = -SPEED;
-      if (keys["ArrowRight"] || keys["d"]) player.vx = SPEED;
+      if (keys["ArrowUp"] || keys["w"]) player.vy = -player.speed;
+      if (keys["ArrowDown"] || keys["s"]) player.vy = player.speed;
+      if (keys["ArrowLeft"] || keys["a"]) player.vx = -player.speed;
+      if (keys["ArrowRight"] || keys["d"]) player.vx = player.speed;
 
       const nextX = player.x + player.vx;
       const nextY = player.y + player.vy;
@@ -397,26 +241,56 @@
 
       viruses.forEach(v => {
         if (v.moving) {
-          if (Math.random() < 0.2) { // Slow down virus movement speed to match player speed
+          if (Math.random() < 0.2) {
             let newX = v.x + v.dx;
             let newY = v.y + v.dy;
-            if (newX < 0 || newX >= MAP_WIDTH) {
-              v.dx *= -1;
-              newX = v.x + v.dx;
-            }
-            if (newY < 0 || newY >= MAP_HEIGHT - 1) {
-              v.dy *= -1;
-              newY = v.y + v.dy;
-            }
-            v.x = newX;
-            v.y = newY;
+            if (newX < 0 || newX >= MAP_WIDTH) v.dx *= -1;
+            if (newY < 0 || newY >= MAP_HEIGHT - 1) v.dy *= -1;
+            v.x += v.dx;
+            v.y += v.dy;
           }
         }
-        if (v.x === gridX && v.y === gridY) {
-          player.energy -= 5;
-        }
+        if (v.x === gridX && v.y === gridY) player.energy -= 5;
       });
     }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#0f0";
+      ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
+
+      nutrients.forEach(n => {
+        if (!n.collected && n.revealed) {
+          ctx.fillStyle = "yellow";
+          ctx.fillRect(n.x * TILE_SIZE, n.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+      });
+
+      viruses.forEach(v => {
+        ctx.fillStyle = v.color;
+        ctx.fillRect(v.x * TILE_SIZE, v.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+      });
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    document.addEventListener("keydown", e => {
+      keys[e.key] = true;
+      if (e.key === "e" && scanCooldown <= 0 && gameRunning) {
+        scanArea();
+        scanCooldown = 100;
+      }
+    });
+
+    document.addEventListener("keyup", e => {
+      keys[e.key] = false;
+    });
+
+    loop();
   </script>
 </body>
 </html>
