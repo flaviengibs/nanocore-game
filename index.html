@@ -58,7 +58,7 @@
   </style>
 </head>
 <body>
-  <h1>NanoCore</h1>
+  <h1 id="title">NanoCore</h1>
   <div id="zoneLabel"></div>
   <div id="scanStatus"></div>
   <div id="overlay" style="display: flex">
@@ -314,6 +314,101 @@
     }
 
     loop();
+     function endGame(win) {
+      gameRunning = false;
+      overlay.style.display = "flex";
+
+      if (win) {
+        // Final boss or DNA riddle
+        overlay.innerHTML = `<div>
+          <h2>Final Encounter</h2>
+          <p>You reach the heart of the DNA chain. A complex code blocks your path.<br>Decrypt it by collecting 5 special nutrients before energy runs out!</p>
+          <button onclick='startFinalChallenge()'>Begin Decoding</button>
+        </div>`;
+      } else {
+        overlay.innerHTML = `<div>
+          <h2>System Failure</h2>
+          <p>Your energy has depleted... The body rejected you.</p>
+          <button onclick='startGame()'>Retry</button>
+        </div>`;
+      }
+    }
+
+    function startFinalChallenge() {
+      overlay.style.display = "none";
+      finalChallenge = true;
+      gameRunning = true;
+      nutrients = [];
+      viruses = [];
+      for (let i = 0; i < 5; i++) {
+        let x = Math.floor(Math.random() * MAP_WIDTH);
+        let y = Math.floor(Math.random() * (MAP_HEIGHT - 1));
+        nutrients.push({ x, y, collected: false, revealed: true });
+      }
+      player.energy = player.maxEnergy;
+    }
+
+    let finalChallenge = false;
+
+    function update() {
+      if (!gameRunning) return;
+      if (player.energy <= 0) return endGame(false);
+
+      scanStatus.textContent = scanCooldown > 0 ? "" : "Scanner prêt";
+      if (scanCooldown > 0) scanCooldown--;
+
+      player.vx = player.vy = 0;
+      if (keys["ArrowUp"] || keys["w"]) player.vy = -SPEED;
+      if (keys["ArrowDown"] || keys["s"]) player.vy = SPEED;
+      if (keys["ArrowLeft"] || keys["a"]) player.vx = -SPEED;
+      if (keys["ArrowRight"] || keys["d"]) player.vx = SPEED;
+
+      const nextX = player.x + player.vx;
+      const nextY = player.y + player.vy;
+
+      if (nextX >= 0 && nextX < canvas.width - TILE_SIZE) player.x = nextX;
+      if (nextY >= 0 && nextY < canvas.height - TILE_SIZE) player.y = nextY;
+
+      if (player.vx !== 0 || player.vy !== 0) player.energy -= 0.1;
+      if (player.regen) player.energy = Math.min(player.energy + 0.05, player.maxEnergy);
+
+      const gridX = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      const gridY = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+
+      nutrients.forEach(n => {
+        if (!n.collected && n.x === gridX && n.y === gridY) {
+          n.collected = true;
+          player.energy = Math.min(player.energy + 20, player.maxEnergy);
+          upgrades++;
+          if (!finalChallenge && upgrades % 3 === 0) {
+            upgradePoints++;
+            chooseUpgrade();
+          } else if (finalChallenge && nutrients.every(n => n.collected)) {
+            overlay.style.display = "flex";
+            overlay.innerHTML = `<div>
+              <h2>DNA Decoded!</h2>
+              <p>You’ve decrypted the core sequence and completed your mission.</p>
+              <button onclick='startGame()'>Play Again</button>
+            </div>`;
+            gameRunning = false;
+          }
+        }
+      });
+
+      viruses.forEach(v => {
+        if (v.moving) {
+          if (Math.random() < v.speed) {
+            v.x += v.dx;
+            v.y += v.dy;
+            if (v.x < 0 || v.x >= MAP_WIDTH) v.dx *= -1;
+            if (v.y < 0 || v.y >= MAP_HEIGHT - 1) v.dy *= -1;
+          }
+        }
+        if (v.x === gridX && v.y === gridY) {
+          player.energy -= 5;
+        }
+      });
+    }
   </script>
 </body>
 </html>
