@@ -235,7 +235,7 @@
         scanCooldown--;
         scanStatus.textContent = "";
       } else {
-        scanStatus.textContent = "Scanner prêt";
+        scanStatus.textContent = "Scanner ready for use";
       }
 
       player.vx = player.vy = 0;
@@ -303,7 +303,7 @@
 
       if (nutrients.every(n => n.collected)) {
         ctx.fillStyle = "lime";
-        ctx.fillText("Zone cleared! Press SPACE to continue", 150, 30);
+        ctx.fillText("Area cleared! Press SPACE to continue", 150, 30);
       }
     }
 
