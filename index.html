@@ -58,7 +58,7 @@
   </style>
 </head>
 <body>
-  <h1 id="title">NanoCore</h1>
+  <h1 id="title">NanoCore <a href="https://www.flaviengibs.github.io/nanocore-instructions/index.html">Instructions</a></h1>
   <div id="zoneLabel"></div>
   <div id="scanStatus"></div>
   <div id="overlay" style="display: flex">
@@ -239,9 +239,9 @@
       }
 
       player.vx = player.vy = 0;
-      if (keys["ArrowUp"] || keys["w"]) player.vy = -SPEED;
+      if (keys["ArrowUp"] || keys["z"]) player.vy = -SPEED;
       if (keys["ArrowDown"] || keys["s"]) player.vy = SPEED;
-      if (keys["ArrowLeft"] || keys["a"]) player.vx = -SPEED;
+      if (keys["ArrowLeft"] || keys["q"]) player.vx = -SPEED;
       if (keys["ArrowRight"] || keys["d"]) player.vx = SPEED;
 
       const nextX = player.x + player.vx;
