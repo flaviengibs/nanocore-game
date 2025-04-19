@@ -314,7 +314,7 @@
     }
 
     loop();
-     function endGame(win) {
+    function endGame(win) {
       gameRunning = false;
       overlay.style.display = "flex";
 
@@ -397,11 +397,19 @@
 
       viruses.forEach(v => {
         if (v.moving) {
-          if (Math.random() < v.speed) {
-            v.x += v.dx;
-            v.y += v.dy;
-            if (v.x < 0 || v.x >= MAP_WIDTH) v.dx *= -1;
-            if (v.y < 0 || v.y >= MAP_HEIGHT - 1) v.dy *= -1;
+          if (Math.random() < 0.2) { // Slow down virus movement speed to match player speed
+            let newX = v.x + v.dx;
+            let newY = v.y + v.dy;
+            if (newX < 0 || newX >= MAP_WIDTH) {
+              v.dx *= -1;
+              newX = v.x + v.dx;
+            }
+            if (newY < 0 || newY >= MAP_HEIGHT - 1) {
+              v.dy *= -1;
+              newY = v.y + v.dy;
+            }
+            v.x = newX;
+            v.y = newY;
           }
         }
         if (v.x === gridX && v.y === gridY) {
@@ -412,3 +420,4 @@
   </script>
 </body>
 </html>
+
