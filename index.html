@@ -40,18 +40,27 @@
     }
     #zoneLabel {
       position: absolute;
-      top: 70px;
+      top: 100px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 18px;
       color: #0f0;
       z-index: 5;
     }
+    #scanStatus {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 16px;
+      color: #0f0;
+    }
   </style>
 </head>
 <body>
   <h1>NanoCore</h1>
   <div id="zoneLabel"></div>
+  <div id="scanStatus"></div>
   <div id="overlay" style="display: flex">
     <div>
       <h2>Welcome to NanoCore</h2>
@@ -65,6 +74,7 @@
     const ctx = canvas.getContext("2d");
     const overlay = document.getElementById("overlay");
     const zoneLabel = document.getElementById("zoneLabel");
+    const scanStatus = document.getElementById("scanStatus");
 
     const TILE_SIZE = 32;
     const MAP_WIDTH = 20;
@@ -119,16 +129,34 @@
     }
 
     function generateLevel() {
-      nutrients = Array.from({ length: 10 }, () => ({
-        x: Math.floor(Math.random() * MAP_WIDTH),
-        y: Math.floor(Math.random() * (MAP_HEIGHT - 1)),
-        collected: false,
-        revealed: false
-      }));
-      viruses = Array.from({ length: 5 + zone }, () => ({
-        x: Math.floor(Math.random() * MAP_WIDTH),
-        y: Math.floor(Math.random() * (MAP_HEIGHT - 1))
-      }));
+      nutrients = [];
+      viruses = [];
+      while (nutrients.length < 10) {
+        let x = Math.floor(Math.random() * MAP_WIDTH);
+        let y = Math.floor(Math.random() * (MAP_HEIGHT - 1));
+        if (!viruses.some(v => v.x === x && v.y === y)) {
+          nutrients.push({ x, y, collected: false, revealed: false });
+        }
+      }
+
+      viruses = Array.from({ length: 5 + zone }, () => {
+        const moving = Math.random() < 0.3;
+        let vx, vy;
+        let x, y;
+        do {
+          x = Math.floor(Math.random() * MAP_WIDTH);
+          y = Math.floor(Math.random() * (MAP_HEIGHT - 1));
+        } while (nutrients.some(n => n.x === x && n.y === y));
+
+        return {
+          x,
+          y,
+          moving,
+          dx: moving ? (Math.random() < 0.5 ? 1 : -1) : 0,
+          dy: moving ? (Math.random() < 0.5 ? 1 : -1) : 0
+        };
+      });
+
       scanMap = Array.from({ length: MAP_WIDTH }, () => Array(MAP_HEIGHT).fill(false));
       scanCooldown = 0;
       zoneLabel.textContent = `Zone ${zone}`;
@@ -203,7 +231,13 @@
       if (!gameRunning) return;
       if (player.energy <= 0) return endGame(false);
 
-      scanCooldown--;
+      if (scanCooldown > 0) {
+        scanCooldown--;
+        scanStatus.textContent = "";
+      } else {
+        scanStatus.textContent = "Scanner prêt";
+      }
+
       player.vx = player.vy = 0;
       if (keys["ArrowUp"] || keys["w"]) player.vy = -SPEED;
       if (keys["ArrowDown"] || keys["s"]) player.vy = SPEED;
@@ -235,6 +269,12 @@
       });
 
       viruses.forEach(v => {
+        if (v.moving) {
+          v.x += v.dx;
+          v.y += v.dy;
+          if (v.x < 0 || v.x >= MAP_WIDTH) v.dx *= -1;
+          if (v.y < 0 || v.y >= MAP_HEIGHT - 1) v.dy *= -1;
+        }
         if (v.x === gridX && v.y === gridY) {
           player.energy -= 5;
         }
@@ -253,7 +293,7 @@
         if (!n.collected && n.revealed) drawTile(n.x, n.y, "lime");
       });
 
-      viruses.forEach(v => drawTile(v.x, v.y, "red"));
+      viruses.forEach(v => drawTile(v.x, v.y, v.moving ? "purple" : "red"));
 
       ctx.fillStyle = player.color;
       ctx.fillRect(player.x, player.y, TILE_SIZE - 4, TILE_SIZE - 4);
