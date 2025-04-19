@@ -40,17 +40,17 @@
     }
     #zoneLabel {
       position: absolute;
-      top: 10px;
+      top: 70px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 18px;
       color: #0f0;
+      z-index: 5;
     }
   </style>
 </head>
 <body>
   <h1>NanoCore</h1>
-  <p>Use arrow keys or WASD to move. Press <strong>E</strong> to scan. Avoid red viruses. Collect hidden nutrients.</p>
   <div id="zoneLabel"></div>
   <div id="overlay" style="display: flex">
     <div>
@@ -77,7 +77,8 @@
     let gameWon = false;
     let upgrades = 0;
     let upgradePoints = 0;
-    let scannerAvailable = false;
+    let scannerAvailable = true;
+    let scanRange = 3;
     let scanMap = [];
     let scanCooldown = 0;
     let zone = 1;
@@ -111,7 +112,8 @@
       upgrades = 0;
       upgradePoints = 0;
       SPEED = 1.5;
-      scannerAvailable = false;
+      scannerAvailable = true;
+      scanRange = 3;
       zone = 1;
       generateLevel();
     }
@@ -161,7 +163,7 @@
         <button onclick="applyUpgrade('speed')">+Speed</button>
         <button onclick="applyUpgrade('energy')">+Max Energy</button>
         <button onclick="applyUpgrade('regen')">Passive Regen</button>
-        <button onclick="applyUpgrade('scan')">Enable Scanner</button>
+        <button onclick="applyUpgrade('scanrange')">Extended Scan</button>
       </div>`;
       gameRunning = false;
     }
@@ -170,7 +172,7 @@
       if (type === "speed") SPEED += 0.5;
       if (type === "energy") player.maxEnergy += 20;
       if (type === "regen") player.regen = true;
-      if (type === "scan") scannerAvailable = true;
+      if (type === "scanrange") scanRange += 1;
       upgradePoints--;
       if (upgradePoints > 0) chooseUpgrade();
       else {
@@ -182,8 +184,8 @@
     function scan() {
       const px = Math.floor(player.x / TILE_SIZE);
       const py = Math.floor(player.y / TILE_SIZE);
-      for (let dx = -3; dx <= 3; dx++) {
-        for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -scanRange; dx <= scanRange; dx++) {
+        for (let dy = -scanRange; dy <= scanRange; dy++) {
           const x = px + dx;
           const y = py + dy;
           if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
@@ -217,8 +219,8 @@
       if (player.vx !== 0 || player.vy !== 0) player.energy -= 0.1;
       if (player.regen) player.energy = Math.min(player.energy + 0.05, player.maxEnergy);
 
-      const gridX = Math.floor(player.x / TILE_SIZE);
-      const gridY = Math.floor(player.y / TILE_SIZE);
+      const gridX = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      const gridY = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
 
       nutrients.forEach(n => {
         if (!n.collected && n.x === gridX && n.y === gridY) {
@@ -237,11 +239,6 @@
           player.energy -= 5;
         }
       });
-
-      if (nutrients.every(n => n.collected)) {
-        ctx.fillStyle = "lime";
-        ctx.fillText("Zone cleared! Press SPACE to continue", 150, 20);
-      }
     }
 
     function drawTile(x, y, color) {
@@ -263,6 +260,11 @@
 
       ctx.fillStyle = "white";
       ctx.fillText("Energy: " + Math.floor(player.energy) + "/" + player.maxEnergy, 10, 470);
+
+      if (nutrients.every(n => n.collected)) {
+        ctx.fillStyle = "lime";
+        ctx.fillText("Zone cleared! Press SPACE to continue", 150, 30);
+      }
     }
 
     function loop() {
